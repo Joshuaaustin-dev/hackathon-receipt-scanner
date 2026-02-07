@@ -262,6 +262,88 @@ function validateRecipesAgainstAllergies(recipesData, allergies) {
   return validatedRecipes;
 }
 
+//Recipes storage logic
+app.post("/api/recipes/save", async (req, res) => {
+  try {
+    const { recipe } = req.body;
+
+    if (!recipe || !recipe.name) {
+      return res.status(400).json({ error: "Recipe data is required" });
+    }
+
+    const recipeId =
+      recipe.name.toLowerCase().replace(/[^a-z0-9]/g, "-") + "-" + Date.now();
+
+    const recipeRef = db
+      .collection("users")
+      .doc(DEMO_USER_ID)
+      .collection("Recipes") // ✅ CONSISTENT
+      .doc(recipeId);
+
+    await recipeRef.set({
+      ...recipe,
+      recipeId,
+      savedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    res.json({
+      success: true,
+      message: "Recipe saved successfully",
+      recipeId,
+    });
+  } catch (error) {
+    console.error("Error saving recipe:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/recipes/saved", async (req, res) => {
+  try {
+    const recipesRef = db
+      .collection("users")
+      .doc(DEMO_USER_ID)
+      .collection("Recipes"); // ✅ FIXED
+
+    const snapshot = await recipesRef.orderBy("savedAt", "desc").get();
+
+    const recipes = snapshot.docs.map((doc) => doc.data());
+
+    res.json({
+      success: true,
+      recipes,
+    });
+  } catch (error) {
+    console.error("Error getting saved recipes:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete("/api/recipes/save/:recipeId", async (req, res) => {
+  try {
+    const { recipeId } = req.params;
+
+    await db
+      .collection("users")
+      .doc(DEMO_USER_ID)
+      .collection("Recipes") // ✅ FIXED
+      .doc(recipeId)
+      .delete();
+
+    res.json({
+      success: true,
+      message: "Recipe deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting recipe:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Serve recipes page
+app.get("/recipes", (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "frontend", "recipes.html"));
+});
+
 //Start server
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

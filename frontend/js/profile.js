@@ -1,34 +1,12 @@
 // Backend API URL
 const API_URL = "http://localhost:3001";
 
-// Saved recipes from localStorage
-function getSavedRecipes() {
-  const saved = localStorage.getItem("savedRecipes");
-  return saved ? JSON.parse(saved) : [];
-}
-
-function isSavedRecipe(recipeName) {
-  return getSavedRecipes().includes(recipeName);
-}
-
-function saveRecipe(recipeName) {
-  const saved = getSavedRecipes();
-  if (!saved.includes(recipeName)) {
-    saved.push(recipeName);
-    localStorage.setItem("savedRecipes", JSON.stringify(saved));
-  }
-}
-
-function removeSavedRecipe(recipeName) {
-  let saved = getSavedRecipes();
-  saved = saved.filter((name) => name !== recipeName);
-  localStorage.setItem("savedRecipes", JSON.stringify(saved));
-}
+// Store current recipes in memory
+let currentRecipes = [];
 
 // Modal functionality
 function openRecipeModal(recipe) {
   const modal = document.getElementById("recipeModal");
-  const isSaved = isSavedRecipe(recipe.name);
 
   // Populate header
   document.getElementById("modalTitle").textContent = recipe.name;
@@ -71,7 +49,7 @@ function openRecipeModal(recipe) {
 
   // Update save button
   const saveBtn = document.getElementById("modalSaveBtn");
-  if (isSaved) {
+  if (recipe.recipeId) {
     saveBtn.classList.add("saved");
     saveBtn.textContent = "✓ Recipe Saved";
   } else {
@@ -80,7 +58,7 @@ function openRecipeModal(recipe) {
   }
 
   // Store current recipe for save action
-  saveBtn.setAttribute("data-recipe-name", recipe.name);
+  saveBtn.setAttribute("data-recipe-data", JSON.stringify(recipe));
 
   // Show modal
   modal.classList.add("active");
@@ -108,17 +86,29 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Save recipe button
-  saveBtn?.addEventListener("click", () => {
-    const recipeName = saveBtn.getAttribute("data-recipe-name");
-    if (isSavedRecipe(recipeName)) {
-      removeSavedRecipe(recipeName);
+  // Save recipe button in modal
+  saveBtn?.addEventListener("click", async () => {
+    const recipeData = saveBtn.getAttribute("data-recipe-data");
+    if (!recipeData) return;
+
+    const recipe = JSON.parse(recipeData);
+
+    if (recipe.recipeId) {
+      // Recipe is already saved, unsave it
+      await unsaveRecipe(recipe.recipeId);
       saveBtn.classList.remove("saved");
       saveBtn.textContent = "💾 Save Recipe";
+      showToast("Recipe removed from saved recipes", "success");
     } else {
-      saveRecipe(recipeName);
-      saveBtn.classList.add("saved");
-      saveBtn.textContent = "✓ Recipe Saved";
+      // Save the recipe
+      const result = await saveRecipeToFirebase(recipe);
+      if (result.success) {
+        recipe.recipeId = result.recipeId;
+        saveBtn.setAttribute("data-recipe-data", JSON.stringify(recipe));
+        saveBtn.classList.add("saved");
+        saveBtn.textContent = "✓ Recipe Saved";
+        showToast("Recipe saved successfully!", "success");
+      }
     }
   });
 
@@ -130,6 +120,76 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
+// Save recipe to Firebase
+async function saveRecipeToFirebase(recipe) {
+  try {
+    const response = await fetch(`${API_URL}/api/recipes/save`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ recipe }),
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      // Update the recipe in currentRecipes array
+      const recipeIndex = currentRecipes.findIndex(
+        (r) => r.name === recipe.name,
+      );
+      if (recipeIndex !== -1) {
+        currentRecipes[recipeIndex].recipeId = data.recipeId;
+      }
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Error saving recipe:", error);
+    showToast("Failed to save recipe", "error");
+    return { success: false };
+  }
+}
+
+// Unsave recipe from Firebase
+async function unsaveRecipe(recipeId) {
+  try {
+    const response = await fetch(`${API_URL}/api/recipes/save/${recipeId}`, {
+      method: "DELETE",
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      // Remove recipeId from currentRecipes array
+      const recipe = currentRecipes.find((r) => r.recipeId === recipeId);
+      if (recipe) {
+        delete recipe.recipeId;
+      }
+      // Re-render recipes
+      displayRecipes(currentRecipes, window.currentUserProfile);
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Error unsaving recipe:", error);
+    showToast("Failed to remove recipe", "error");
+    return { success: false };
+  }
+}
+
+// Show toast notification
+function showToast(message, type = "success") {
+  const toast = document.createElement("div");
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+
+  setTimeout(() => {
+    toast.remove();
+  }, 3000);
+}
+
 // Fetch profile and populate the DOM
 async function loadAndRenderProfile() {
   try {
@@ -139,14 +199,10 @@ async function loadAndRenderProfile() {
       document.getElementById("profile-name").textContent = "Unable to load";
       return;
     }
-
     const data = await res.json();
     const src = data?.profile || data;
-
     const name = src?.name || "";
     const bio = src?.bio || "";
-
-    // FIXED: Access nested allergies properly
     const allergies = Array.isArray(src?.preferences?.allergies)
       ? src.preferences.allergies
       : [];
@@ -189,9 +245,7 @@ async function generateRecipes() {
   recipesContainer.innerHTML = "";
 
   try {
-    // FIXED: Template literal syntax
     const response = await fetch(`${API_URL}/api/generate-recipes`, {
-      // Fixed: was fetch`...`
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -202,6 +256,8 @@ async function generateRecipes() {
     const data = await response.json();
 
     if (data.success) {
+      currentRecipes = data.recipes;
+      window.currentUserProfile = data.userProfile;
       displayRecipes(data.recipes, data.userProfile);
     } else {
       recipesContainer.innerHTML = `<div class="message error">${data.error}</div>`;
@@ -218,7 +274,6 @@ async function generateRecipes() {
 // Parse test ingredients from textarea
 function parseTestIngredients(text) {
   if (!text.trim()) return [];
-
   return text
     .split("\n")
     .filter((line) => line.trim())
@@ -231,7 +286,36 @@ function parseTestIngredients(text) {
     });
 }
 
-// Display recipes on the page with full details
+// Toggle recipe card expansion
+function toggleRecipeExpansion(index) {
+  const card = document.querySelector(`[data-recipe-index="${index}"]`);
+  if (!card) return;
+
+  const content = card.querySelector(".recipe-content");
+  const toggleBtn = card.querySelector(".btn-toggle-expand");
+
+  if (card.classList.contains("expanded")) {
+    card.classList.remove("expanded");
+    content.style.maxHeight = "0";
+    toggleBtn.innerHTML = "👁️ View Full Recipe";
+  } else {
+    // Collapse all other cards first
+    document.querySelectorAll(".recipe-card.expanded").forEach((otherCard) => {
+      if (otherCard !== card) {
+        otherCard.classList.remove("expanded");
+        otherCard.querySelector(".recipe-content").style.maxHeight = "0";
+        otherCard.querySelector(".btn-toggle-expand").innerHTML =
+          "👁️ View Full Recipe";
+      }
+    });
+
+    card.classList.add("expanded");
+    content.style.maxHeight = content.scrollHeight + "px";
+    toggleBtn.innerHTML = "🔼 Collapse Recipe";
+  }
+}
+
+// Display recipes on the page as expandable cards
 function displayRecipes(recipes, userProfile) {
   const container = document.getElementById("recipesContainer");
   if (!recipes || recipes.length === 0) {
@@ -240,25 +324,20 @@ function displayRecipes(recipes, userProfile) {
     return;
   }
 
-  // Access allergies and dietary preferences from nested preferences object
   const preferences = userProfile.preferences || {};
   const allergies = Array.isArray(preferences.allergies)
     ? preferences.allergies
-    : [];
-  const dietaryPreferences = Array.isArray(preferences.dietaryPreferences)
-    ? preferences.dietaryPreferences
     : [];
 
   let html = "";
   recipes.forEach((recipe, index) => {
     const safetyClass = recipe.isSafe === false ? "unsafe" : "";
     const difficultyClass = `difficulty-${recipe.difficulty}`;
-    const isSaved = isSavedRecipe(recipe.name);
-    const saveIcon = isSaved ? "❤️" : "🤍";
+    const isSaved = !!recipe.recipeId;
 
     html += `
-      <article class="recipe-card ${safetyClass}">
-        <!-- Recipe Header -->
+      <article class="recipe-card ${safetyClass}" data-recipe-index="${index}">
+        <!-- Recipe Header (Always Visible) -->
         <div class="recipe-header">
           <h3>
             <span class="recipe-number">${index + 1}</span>
@@ -297,7 +376,7 @@ function displayRecipes(recipes, userProfile) {
             : ""
         }
 
-        <!-- Recipe Content -->
+        <!-- Recipe Content (Collapsible) -->
         <div class="recipe-content">
           <!-- Ingredients Section -->
           <h4 class="recipe-section-title">🥘 Ingredients</h4>
@@ -314,10 +393,10 @@ function displayRecipes(recipes, userProfile) {
 
         <!-- Recipe Actions -->
         <div class="recipe-actions">
-          <button class="btn-save ${isSaved ? "saved" : ""}" data-recipe-name="${recipe.name}">
-            ${isSaved ? "❤️ Recipe Saved" : "🤍 Save Recipe"}
+          <button class="btn-save ${isSaved ? "saved" : ""}" data-recipe-index="${index}">
+            ${isSaved ? "❤️ Saved" : "🤍 Save"}
           </button>
-          <button class="btn-view-modal" data-recipe-index="${index}">
+          <button class="btn-toggle-expand" data-recipe-index="${index}">
             👁️ View Full Recipe
           </button>
         </div>
@@ -328,29 +407,42 @@ function displayRecipes(recipes, userProfile) {
   container.innerHTML = html;
 
   // Attach event listeners to save buttons
-  recipes.forEach((recipe) => {
-    const card = container.querySelector(
-      `[data-recipe-name="${recipe.name}"] .btn-save`,
+  recipes.forEach((recipe, index) => {
+    const saveBtn = container.querySelector(
+      `.btn-save[data-recipe-index="${index}"]`,
     );
-    card?.addEventListener("click", (e) => {
+
+    saveBtn?.addEventListener("click", async (e) => {
       e.stopPropagation();
-      if (isSavedRecipe(recipe.name)) {
-        removeSavedRecipe(recipe.name);
-        card.classList.remove("saved");
-        card.textContent = "🤍 Save Recipe";
+
+      if (recipe.recipeId) {
+        // Unsave recipe
+        const result = await unsaveRecipe(recipe.recipeId);
+        if (result.success) {
+          saveBtn.classList.remove("saved");
+          saveBtn.innerHTML = "🤍 Save";
+          showToast("Recipe removed from saved recipes", "success");
+        }
       } else {
-        saveRecipe(recipe.name);
-        card.classList.add("saved");
-        card.textContent = "❤️ Recipe Saved";
+        // Save recipe
+        const result = await saveRecipeToFirebase(recipe);
+        if (result.success) {
+          saveBtn.classList.add("saved");
+          saveBtn.innerHTML = "❤️ Saved";
+          showToast("Recipe saved successfully!", "success");
+        }
       }
     });
   });
 
-  // Attach event listeners to "View Full Recipe" buttons
+  // Attach event listeners to expand/collapse buttons
   recipes.forEach((recipe, index) => {
-    const viewBtn = container.querySelector(`[data-recipe-index="${index}"]`);
-    viewBtn?.addEventListener("click", () => {
-      openRecipeModal(recipe);
+    const toggleBtn = container.querySelector(
+      `.btn-toggle-expand[data-recipe-index="${index}"]`,
+    );
+
+    toggleBtn?.addEventListener("click", () => {
+      toggleRecipeExpansion(index);
     });
   });
 }
