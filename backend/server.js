@@ -3,6 +3,8 @@ import cors from "cors";
 import dotenv from "dotenv";
 import admin from "firebase-admin";
 import { readFileSync } from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
 dotenv.config();
 
@@ -19,6 +21,13 @@ const db = admin.firestore();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Resolve __dirname for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Serve the frontend folder so CSS and other assets are available
+app.use(express.static(path.join(__dirname, "..", "frontend")));
 
 //MIDDLEWARE
 app.use(cors());
@@ -43,7 +52,8 @@ app.get("/api/profile", async (req, res) => {
       return res.json({
         profile: {
           name: "",
-          allergies: [],
+          bio: "",
+          preferences: [],
           dietaryPreferences: [],
         },
       });
@@ -56,34 +66,11 @@ app.get("/api/profile", async (req, res) => {
   }
 });
 
-// POST (save) user profile
-app.post("/api/profile", async (req, res) => {
-  try {
-    const { name, allergies, dietaryPreferences } = req.body;
-
-    const profileData = {
-      userId: DEMO_USER_ID,
-      name: name || "",
-      allergies: allergies || [],
-      dietaryPreferences: dietaryPreferences || [],
-      updatedAt: new Date().toISOString(),
-    };
-
-    // Save to Firestore
-    await db
-      .collection("users")
-      .doc(DEMO_USER_ID)
-      .set(profileData, { merge: true });
-
-    res.json({
-      success: true,
-      message: "Profile saved successfully!",
-      profile: profileData,
-    });
-  } catch (error) {
-    console.error("Error saving profile:", error);
-    res.status(500).json({ error: error.message });
-  }
+// Prettified HTML view of the profile
+app.get("/profile", (req, res) => {
+  // Send the static `profile.html` file from the frontend folder. The client
+  // will fetch `/api/profile` to populate the page.
+  res.sendFile(path.join(__dirname, "..", "frontend", "profile.html"));
 });
 
 //Start server
