@@ -64,14 +64,6 @@
                 </div>
               </div>
             </div>
-
-            <div class="kitchen-tip">
-              <div class="tip-icon">💡</div>
-              <p class="tip-text">
-                Tip: The AI remembers your allergies and won't suggest recipes
-                with those ingredients!
-              </p>
-            </div>
           </div>
         </div>
       </aside>
@@ -89,28 +81,55 @@
           </div>
 
           <!-- Ingredients Input Panel -->
+          <!-- Ingredients Input Panel -->
           <article class="ingredient-panel">
             <div class="panel-header">
               <h2 class="panel-title">
                 <span class="title-icon">🥗</span>
-                Your Pantry Ingredients
+                Your Pantry
               </h2>
               <p class="panel-description">
-                List what you have on hand. Don't worry about being exact!
+                Upload a receipt to automatically add ingredients to your pantry
               </p>
             </div>
 
-            <div class="input-wrapper">
-              <textarea
-                id="testIngredients"
-                class="ingredients-input"
-                placeholder="Ground Beef - 2 lbs&#10;Rice - 1 bag&#10;Bell Peppers - 3&#10;Garlic - 2 cloves&#10;Onions - 1&#10;&#10;Or just write: chicken, pasta, tomatoes..."
-                rows="7"
-                aria-label="List of available ingredients"
-              ></textarea>
-              <div class="input-hint">
-                <span class="hint-icon">ℹ️</span>
-                <span>Leave blank to get popular recipe suggestions!</span>
+            <!-- Receipt Upload Section -->
+            <div class="receipt-upload-wrapper">
+              <div class="upload-area" id="uploadArea">
+                <input
+                  type="file"
+                  id="receiptInput"
+                  accept="image/*"
+                  class="receipt-input"
+                  aria-label="Upload receipt image"
+                />
+                <label for="receiptInput" class="upload-label">
+                  <div class="upload-icon">📸</div>
+                  <p class="upload-text">Upload Receipt</p>
+                  <p class="upload-hint">Click or drag and drop</p>
+                </label>
+              </div>
+
+              <!-- OCR Processing Status -->
+              <div id="ocrStatus" class="ocr-status hidden">
+                <div class="spinner"></div>
+                <p class="status-text">Processing receipt...</p>
+              </div>
+            </div>
+
+            <!-- Current Pantry Display -->
+            <div id="pantrySection" class="pantry-section">
+              <div class="pantry-header">
+                <h3 class="pantry-title">
+                  🥘 Current Pantry Items
+                  <span id="pantryCount" class="pantry-count">(0)</span>
+                </h3>
+                <button id="clearPantry" class="btn-clear hidden">
+                  Clear All
+                </button>
+              </div>
+              <div id="pantryList" class="pantry-list">
+                <p class="empty-pantry">Upload a receipt to get started!</p>
               </div>
             </div>
 
@@ -120,7 +139,7 @@
               aria-label="Generate recipes"
             >
               <span class="btn-icon">✨</span>
-              <span class="btn-text">Cook Up Some Ideas</span>
+              <span class="btn-text">Generate Recipes from Pantry</span>
             </button>
           </article>
 

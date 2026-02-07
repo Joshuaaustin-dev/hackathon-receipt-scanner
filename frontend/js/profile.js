@@ -1,180 +1,202 @@
 // Backend API URL
 const API_URL = "http://localhost:3001";
 
-// Store current recipes in memory
+// Store current recipes and pantry
 let currentRecipes = [];
+let currentPantry = [];
 
-// Modal functionality
-function openRecipeModal(recipe) {
-  const modal = document.getElementById("recipeModal");
-
-  // Populate header
-  document.getElementById("modalTitle").textContent = recipe.name;
-
-  // Populate description
-  document.getElementById("modalDescription").textContent =
-    recipe.description || "No description available";
-
-  // Populate allergen warning
-  const allergenWarning = document.getElementById("modalAlergenWarning");
-  if (recipe.allergenWarning && recipe.allergenWarning !== "None") {
-    allergenWarning.textContent = recipe.allergenWarning;
-    allergenWarning.classList.remove("hidden");
-  } else {
-    allergenWarning.classList.add("hidden");
-  }
-
-  // Populate ingredients
-  const ingredientsList = document.getElementById("modalIngredientsList");
-  ingredientsList.innerHTML = recipe.ingredients
-    .map((ing) => `<li>${ing}</li>`)
-    .join("");
-
-  // Populate instructions
-  const instructionsList = document.getElementById("modalInstructionsList");
-  instructionsList.innerHTML = recipe.instructions
-    .map((step) => `<li>${step}</li>`)
-    .join("");
-
-  // Populate tags
-  const tagsSection = document.getElementById("modalTags");
-  if (recipe.dietaryTags && recipe.dietaryTags.length > 0) {
-    tagsSection.innerHTML = `
-      <h3 class="modal-section-title">Dietary Info</h3>
-      <div>${recipe.dietaryTags.map((tag) => `<span class="tag">${tag}</span>`).join(" ")}</div>
-    `;
-  } else {
-    tagsSection.innerHTML = "";
-  }
-
-  // Update save button
-  const saveBtn = document.getElementById("modalSaveBtn");
-  if (recipe.recipeId) {
-    saveBtn.classList.add("saved");
-    saveBtn.textContent = "✓ Recipe Saved";
-  } else {
-    saveBtn.classList.remove("saved");
-    saveBtn.textContent = "💾 Save Recipe";
-  }
-
-  // Store current recipe for save action
-  saveBtn.setAttribute("data-recipe-data", JSON.stringify(recipe));
-
-  // Show modal
-  modal.classList.add("active");
-}
-
-function closeRecipeModal() {
-  const modal = document.getElementById("recipeModal");
-  modal.classList.remove("active");
-}
-
-// Modal event listeners
+// Initialize on page load
 document.addEventListener("DOMContentLoaded", () => {
-  const modal = document.getElementById("recipeModal");
-  const closeBtn = document.querySelector(".modal-close");
-  const closeBtnFooter = document.querySelector(".btn-modal-close");
-  const saveBtn = document.getElementById("modalSaveBtn");
-
-  closeBtn?.addEventListener("click", closeRecipeModal);
-  closeBtnFooter?.addEventListener("click", closeRecipeModal);
-
-  // Close modal when clicking backdrop
-  modal?.addEventListener("click", (e) => {
-    if (e.target === modal) {
-      closeRecipeModal();
-    }
-  });
-
-  // Save recipe button in modal
-  saveBtn?.addEventListener("click", async () => {
-    const recipeData = saveBtn.getAttribute("data-recipe-data");
-    if (!recipeData) return;
-
-    const recipe = JSON.parse(recipeData);
-
-    if (recipe.recipeId) {
-      // Recipe is already saved, unsave it
-      await unsaveRecipe(recipe.recipeId);
-      saveBtn.classList.remove("saved");
-      saveBtn.textContent = "💾 Save Recipe";
-      showToast("Recipe removed from saved recipes", "success");
-    } else {
-      // Save the recipe
-      const result = await saveRecipeToFirebase(recipe);
-      if (result.success) {
-        recipe.recipeId = result.recipeId;
-        saveBtn.setAttribute("data-recipe-data", JSON.stringify(recipe));
-        saveBtn.classList.add("saved");
-        saveBtn.textContent = "✓ Recipe Saved";
-        showToast("Recipe saved successfully!", "success");
-      }
-    }
-  });
-
-  // Close modal with Escape key
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      closeRecipeModal();
-    }
-  });
+  loadAndRenderProfile();
+  loadPantry();
+  setupReceiptUpload();
+  setupPantryActions();
 });
 
-// Save recipe to Firebase
-async function saveRecipeToFirebase(recipe) {
+// Setup receipt upload functionality
+function setupReceiptUpload() {
+  const receiptInput = document.getElementById("receiptInput");
+  const uploadArea = document.getElementById("uploadArea");
+
+  // File input change
+  receiptInput?.addEventListener("change", handleReceiptUpload);
+
+  // Drag and drop
+  uploadArea?.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    uploadArea.classList.add("drag-over");
+  });
+
+  uploadArea?.addEventListener("dragleave", () => {
+    uploadArea.classList.remove("drag-over");
+  });
+
+  uploadArea?.addEventListener("drop", (e) => {
+    e.preventDefault();
+    uploadArea.classList.remove("drag-over");
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith("image/")) {
+      processReceiptFile(file);
+    }
+  });
+}
+
+// Handle receipt upload
+async function handleReceiptUpload(e) {
+  const file = e.target.files[0];
+  if (file) {
+    await processReceiptFile(file);
+  }
+}
+
+// Process receipt file
+async function processReceiptFile(file) {
+  const ocrStatus = document.getElementById("ocrStatus");
+
+  // Show processing status
+  ocrStatus.classList.remove("hidden");
+
   try {
-    const response = await fetch(`${API_URL}/api/recipes/save`, {
+    // Send to backend for OCR and AI processing
+    const formData = new FormData();
+    formData.append("receipt", file);
+
+    const response = await fetch(`${API_URL}/api/process-receipt`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ recipe }),
+      body: formData,
     });
 
     const data = await response.json();
 
     if (data.success) {
-      // Update the recipe in currentRecipes array
-      const recipeIndex = currentRecipes.findIndex(
-        (r) => r.name === recipe.name,
+      ocrStatus.classList.add("hidden");
+      currentPantry = data.pantry;
+      displayPantry(data.pantry);
+      showToast(
+        `Added ${data.ingredients.length} items to your pantry!`,
+        "success",
       );
-      if (recipeIndex !== -1) {
-        currentRecipes[recipeIndex].recipeId = data.recipeId;
-      }
-    }
 
-    return data;
+      // Clear file input
+      document.getElementById("receiptInput").value = "";
+    } else {
+      throw new Error(data.error || "Failed to process receipt");
+    }
   } catch (error) {
-    console.error("Error saving recipe:", error);
-    showToast("Failed to save recipe", "error");
-    return { success: false };
+    console.error("Error processing receipt:", error);
+    ocrStatus.classList.add("hidden");
+    showToast("Failed to process receipt: " + error.message, "error");
   }
 }
 
-// Unsave recipe from Firebase
-async function unsaveRecipe(recipeId) {
+// Load pantry from Firebase
+async function loadPantry() {
   try {
-    const response = await fetch(`${API_URL}/api/recipes/save/${recipeId}`, {
+    const response = await fetch(`${API_URL}/api/pantry`);
+    const data = await response.json();
+
+    if (data.success) {
+      currentPantry = data.pantry;
+      displayPantry(data.pantry);
+    }
+  } catch (error) {
+    console.error("Error loading pantry:", error);
+  }
+}
+
+// Display pantry items
+function displayPantry(pantry) {
+  const pantryList = document.getElementById("pantryList");
+  const pantryCount = document.getElementById("pantryCount");
+  const clearBtn = document.getElementById("clearPantry");
+
+  pantryCount.textContent = `(${pantry.length})`;
+
+  if (pantry.length === 0) {
+    pantryList.innerHTML =
+      '<p class="empty-pantry">Upload a receipt to get started!</p>';
+    clearBtn.classList.add("hidden");
+    return;
+  }
+
+  clearBtn.classList.remove("hidden");
+
+  let html = "";
+  pantry.forEach((item) => {
+    html += `
+      <div class="pantry-item" data-item-name="${item.name}">
+        <div class="item-info">
+          <span class="item-name">${item.name}</span>
+          ${item.quantity ? `<span class="item-quantity">${item.quantity}</span>` : ""}
+        </div>
+        <button class="btn-remove-item" data-item-name="${item.name}" title="Remove item">
+          ✕
+        </button>
+      </div>
+    `;
+  });
+
+  pantryList.innerHTML = html;
+
+  // Attach remove button listeners
+  pantry.forEach((item) => {
+    const removeBtn = pantryList.querySelector(
+      `.btn-remove-item[data-item-name="${item.name}"]`,
+    );
+    removeBtn?.addEventListener("click", () => removePantryItem(item.name));
+  });
+}
+
+// Setup pantry actions
+function setupPantryActions() {
+  const clearBtn = document.getElementById("clearPantry");
+  clearBtn?.addEventListener("click", clearPantry);
+}
+
+// Remove single pantry item
+async function removePantryItem(itemName) {
+  try {
+    const response = await fetch(
+      `${API_URL}/api/pantry/${encodeURIComponent(itemName)}`,
+      {
+        method: "DELETE",
+      },
+    );
+
+    const data = await response.json();
+
+    if (data.success) {
+      currentPantry = data.pantry;
+      displayPantry(data.pantry);
+      showToast("Item removed from pantry", "success");
+    }
+  } catch (error) {
+    console.error("Error removing item:", error);
+    showToast("Failed to remove item", "error");
+  }
+}
+
+// Clear entire pantry
+async function clearPantry() {
+  if (!confirm("Are you sure you want to clear your entire pantry?")) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/api/pantry`, {
       method: "DELETE",
     });
 
     const data = await response.json();
 
     if (data.success) {
-      // Remove recipeId from currentRecipes array
-      const recipe = currentRecipes.find((r) => r.recipeId === recipeId);
-      if (recipe) {
-        delete recipe.recipeId;
-      }
-      // Re-render recipes
-      displayRecipes(currentRecipes, window.currentUserProfile);
+      currentPantry = [];
+      displayPantry([]);
+      showToast("Pantry cleared", "success");
     }
-
-    return data;
   } catch (error) {
-    console.error("Error unsaving recipe:", error);
-    showToast("Failed to remove recipe", "error");
-    return { success: false };
+    console.error("Error clearing pantry:", error);
+    showToast("Failed to clear pantry", "error");
   }
 }
 
@@ -223,8 +245,6 @@ async function loadAndRenderProfile() {
   }
 }
 
-window.addEventListener("DOMContentLoaded", loadAndRenderProfile);
-
 // Recipe Generation functionality
 document
   .getElementById("generateBtn")
@@ -235,9 +255,10 @@ async function generateRecipes() {
   const loadingMessage = document.getElementById("loadingContainer");
   const recipesContainer = document.getElementById("recipesContainer");
 
-  // Get test ingredients from textarea
-  const testIngredientsText = document.getElementById("testIngredients").value;
-  const ingredients = parseTestIngredients(testIngredientsText);
+  if (currentPantry.length === 0) {
+    showToast("Please add ingredients to your pantry first!", "error");
+    return;
+  }
 
   // Disable button and show loading
   generateBtn.disabled = true;
@@ -250,7 +271,7 @@ async function generateRecipes() {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ ingredients }),
+      body: JSON.stringify({ ingredients: currentPantry }),
     });
 
     const data = await response.json();
@@ -271,19 +292,59 @@ async function generateRecipes() {
   }
 }
 
-// Parse test ingredients from textarea
-function parseTestIngredients(text) {
-  if (!text.trim()) return [];
-  return text
-    .split("\n")
-    .filter((line) => line.trim())
-    .map((line) => {
-      const parts = line.split("-");
-      return {
-        name: parts[0].trim(),
-        quantity: parts[1] ? parts[1].trim() : "",
-      };
+// Save recipe to Firebase
+async function saveRecipeToFirebase(recipe) {
+  try {
+    const response = await fetch(`${API_URL}/api/recipes/save`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ recipe }),
     });
+
+    const data = await response.json();
+
+    if (data.success) {
+      const recipeIndex = currentRecipes.findIndex(
+        (r) => r.name === recipe.name,
+      );
+      if (recipeIndex !== -1) {
+        currentRecipes[recipeIndex].recipeId = data.recipeId;
+      }
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Error saving recipe:", error);
+    showToast("Failed to save recipe", "error");
+    return { success: false };
+  }
+}
+
+// Unsave recipe from Firebase
+async function unsaveRecipe(recipeId) {
+  try {
+    const response = await fetch(`${API_URL}/api/recipes/save/${recipeId}`, {
+      method: "DELETE",
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      const recipe = currentRecipes.find((r) => r.recipeId === recipeId);
+      if (recipe) {
+        delete recipe.recipeId;
+      }
+      displayRecipes(currentRecipes, window.currentUserProfile);
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Error unsaving recipe:", error);
+    showToast("Failed to remove recipe", "error");
+    return { success: false };
+  }
 }
 
 // Toggle recipe card expansion
@@ -299,7 +360,6 @@ function toggleRecipeExpansion(index) {
     content.style.maxHeight = "0";
     toggleBtn.innerHTML = "👁️ View Full Recipe";
   } else {
-    // Collapse all other cards first
     document.querySelectorAll(".recipe-card.expanded").forEach((otherCard) => {
       if (otherCard !== card) {
         otherCard.classList.remove("expanded");
@@ -315,7 +375,7 @@ function toggleRecipeExpansion(index) {
   }
 }
 
-// Display recipes on the page as expandable cards
+// Display recipes on the page
 function displayRecipes(recipes, userProfile) {
   const container = document.getElementById("recipesContainer");
   if (!recipes || recipes.length === 0) {
@@ -337,7 +397,6 @@ function displayRecipes(recipes, userProfile) {
 
     html += `
       <article class="recipe-card ${safetyClass}" data-recipe-index="${index}">
-        <!-- Recipe Header (Always Visible) -->
         <div class="recipe-header">
           <h3>
             <span class="recipe-number">${index + 1}</span>
@@ -345,7 +404,6 @@ function displayRecipes(recipes, userProfile) {
           </h3>
           <p class="description">${recipe.description || ""}</p>
           
-          <!-- Recipe Meta Info -->
           <div class="recipe-meta">
             <span class="meta-item">⏱️ Prep: ${recipe.prepTime || "N/A"}</span>
             <span class="meta-item">🔥 Cook: ${recipe.cookTime || "N/A"}</span>
@@ -353,7 +411,6 @@ function displayRecipes(recipes, userProfile) {
             <span class="meta-item ${difficultyClass}">📊 ${recipe.difficulty || "medium"}</span>
           </div>
 
-          <!-- Dietary Tags -->
           ${
             recipe.dietaryTags && recipe.dietaryTags.length > 0
               ? `
@@ -365,7 +422,6 @@ function displayRecipes(recipes, userProfile) {
           }
         </div>
 
-        <!-- Allergen Warning -->
         ${
           recipe.allergenWarning && recipe.allergenWarning !== "None"
             ? `
@@ -376,22 +432,18 @@ function displayRecipes(recipes, userProfile) {
             : ""
         }
 
-        <!-- Recipe Content (Collapsible) -->
         <div class="recipe-content">
-          <!-- Ingredients Section -->
           <h4 class="recipe-section-title">🥘 Ingredients</h4>
           <ul class="ingredients-list">
             ${recipe.ingredients.map((ing) => `<li>${ing}</li>`).join("")}
           </ul>
 
-          <!-- Instructions Section -->
           <h4 class="recipe-section-title">👨‍🍳 Instructions</h4>
           <ol class="instructions-list">
             ${recipe.instructions.map((step) => `<li>${step}</li>`).join("")}
           </ol>
         </div>
 
-        <!-- Recipe Actions -->
         <div class="recipe-actions">
           <button class="btn-save ${isSaved ? "saved" : ""}" data-recipe-index="${index}">
             ${isSaved ? "❤️ Saved" : "🤍 Save"}
@@ -406,7 +458,7 @@ function displayRecipes(recipes, userProfile) {
 
   container.innerHTML = html;
 
-  // Attach event listeners to save buttons
+  // Attach event listeners
   recipes.forEach((recipe, index) => {
     const saveBtn = container.querySelector(
       `.btn-save[data-recipe-index="${index}"]`,
@@ -416,7 +468,6 @@ function displayRecipes(recipes, userProfile) {
       e.stopPropagation();
 
       if (recipe.recipeId) {
-        // Unsave recipe
         const result = await unsaveRecipe(recipe.recipeId);
         if (result.success) {
           saveBtn.classList.remove("saved");
@@ -424,7 +475,6 @@ function displayRecipes(recipes, userProfile) {
           showToast("Recipe removed from saved recipes", "success");
         }
       } else {
-        // Save recipe
         const result = await saveRecipeToFirebase(recipe);
         if (result.success) {
           saveBtn.classList.add("saved");
@@ -433,10 +483,7 @@ function displayRecipes(recipes, userProfile) {
         }
       }
     });
-  });
 
-  // Attach event listeners to expand/collapse buttons
-  recipes.forEach((recipe, index) => {
     const toggleBtn = container.querySelector(
       `.btn-toggle-expand[data-recipe-index="${index}"]`,
     );
