@@ -2,30 +2,159 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>User Profile</title>
-    <link rel="stylesheet" href="./css/style.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="AI-powered recipe generator based on your dietary preferences and allergies"
+    />
+    <title>Recipe AI Agent | Your Kitchen Assistant</title>
+    <link rel="stylesheet" href="/css/style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&family=Open+Sans:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body>
-    <div class="container profile-card" style="margin-top: 40px">
-      <h1>User Profile</h1>
-
-      <div class="section">
-        <h3>Name</h3>
-        <p id="profile-name" class="muted">Loading…</p>
+    <!-- Header Navigation -->
+    <header class="main-header">
+      <div class="header-content">
+        <div class="logo">
+          <span class="logo-icon">🍳</span>
+          <span class="logo-text">Kitchen AI</span>
+        </div>
+        <nav class="main-nav">
+          <a href="#profile" class="nav-link active">My Kitchen</a>
+          <a href="#recipes" class="nav-link">Recipes</a>
+        </nav>
       </div>
+    </header>
 
-      <div class="section">
-        <h3>Bio</h3>
-        <p id="profile-bio" class="muted">Loading…</p>
-      </div>
+    <main class="app-layout">
+      <!-- Left Sidebar: User Profile -->
+      <aside class="profile-sidebar" role="region" aria-label="User Profile">
+        <div class="profile-container">
+          <div class="profile-card">
+            <div class="profile-avatar">
+              <span class="avatar-emoji">👨‍🍳</span>
+            </div>
 
-      <div class="section">
-        <h3>Allergies</h3>
-        <div id="profile-allergies">Loading…</div>
-      </div>
-    </div>
+            <div class="profile-info-section">
+              <h2 class="welcome-text">Welcome back,</h2>
+              <p id="profile-name" class="chef-name">Loading...</p>
+            </div>
 
-    <script src="./js/profile.js"></script>
+            <div class="profile-details">
+              <div class="detail-card">
+                <div class="detail-icon">✍️</div>
+                <div class="detail-content">
+                  <h3 class="detail-label">About Me</h3>
+                  <p id="profile-bio" class="detail-value">Loading...</p>
+                </div>
+              </div>
+
+              <div class="detail-card allergies-card">
+                <div class="detail-icon">⚠️</div>
+                <div class="detail-content">
+                  <h3 class="detail-label">My Restrictions</h3>
+                  <div id="profile-allergies" class="allergies-badges">
+                    Loading...
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="kitchen-tip">
+              <div class="tip-icon">💡</div>
+              <p class="tip-text">
+                Tip: The AI remembers your allergies and won't suggest recipes
+                with those ingredients!
+              </p>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Right Content: Recipe Generation -->
+      <section class="recipe-main" role="region" aria-label="Recipe Generation">
+        <div class="content-wrapper">
+          <!-- Hero Section -->
+          <div class="hero-section">
+            <h1 class="page-title">What's Cooking Today?</h1>
+            <p class="page-subtitle">
+              Tell me what ingredients you have, and I'll create delicious
+              recipes tailored just for you
+            </p>
+          </div>
+
+          <!-- Ingredients Input Panel -->
+          <article class="ingredient-panel">
+            <div class="panel-header">
+              <h2 class="panel-title">
+                <span class="title-icon">🥗</span>
+                Your Pantry Ingredients
+              </h2>
+              <p class="panel-description">
+                List what you have on hand. Don't worry about being exact!
+              </p>
+            </div>
+
+            <div class="input-wrapper">
+              <textarea
+                id="testIngredients"
+                class="ingredients-input"
+                placeholder="Ground Beef - 2 lbs&#10;Rice - 1 bag&#10;Bell Peppers - 3&#10;Garlic - 2 cloves&#10;Onions - 1&#10;&#10;Or just write: chicken, pasta, tomatoes..."
+                rows="7"
+                aria-label="List of available ingredients"
+              ></textarea>
+              <div class="input-hint">
+                <span class="hint-icon">ℹ️</span>
+                <span>Leave blank to get popular recipe suggestions!</span>
+              </div>
+            </div>
+
+            <button
+              id="generateBtn"
+              class="btn btn-generate"
+              aria-label="Generate recipes"
+            >
+              <span class="btn-icon">✨</span>
+              <span class="btn-text">Cook Up Some Ideas</span>
+            </button>
+          </article>
+
+          <!-- Loading State -->
+          <div
+            id="loadingContainer"
+            class="loading-state hidden"
+            role="status"
+            aria-live="polite"
+          >
+            <div class="loading-content">
+              <div class="cooking-animation">
+                <div class="pot">🍲</div>
+                <div class="steam">💨</div>
+              </div>
+              <h3 class="loading-title">Cooking up your recipes...</h3>
+              <p class="loading-text">
+                Our AI chef is analyzing your ingredients and creating the
+                perfect dishes for you
+              </p>
+            </div>
+          </div>
+
+          <!-- Recipes Container -->
+          <div
+            id="recipesContainer"
+            class="recipes-section"
+            role="region"
+            aria-label="Generated Recipes"
+          ></div>
+        </div>
+      </section>
+    </main>
+
+    <script src="/js/profile.js"></script>
   </body>
 </html>
