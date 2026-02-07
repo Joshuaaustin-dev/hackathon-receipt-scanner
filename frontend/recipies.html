@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="View all your saved recipes" />
+    <title>My Saved Recipes | Kitchen AI</title>
+    <link rel="stylesheet" href="/css/style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&family=Open+Sans:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <!-- Header Navigation -->
+    <header class="main-header">
+      <div class="header-content">
+        <div class="logo">
+          <span class="logo-icon">🍳</span>
+          <span class="logo-text">Kitchen AI</span>
+        </div>
+        <nav class="main-nav">
+          <a href="/profile.html" class="nav-link">My Kitchen</a>
+          <a href="/recipes.html" class="nav-link active">Recipes</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="recipes-page-layout">
+      <div class="content-wrapper">
+        <!-- Hero Section -->
+        <div class="hero-section">
+          <h1 class="page-title">
+            <span class="title-icon">❤️</span>
+            My Saved Recipes
+          </h1>
+          <p class="page-subtitle">Your collection of delicious recipes</p>
+        </div>
+
+        <!-- Loading State -->
+        <div
+          id="loadingContainer"
+          class="loading-state"
+          role="status"
+          aria-live="polite"
+        >
+          <div class="loading-content">
+            <div class="cooking-animation">
+              <div class="pot">🍲</div>
+              <div class="steam">💨</div>
+            </div>
+            <h3 class="loading-title">Loading your recipes...</h3>
+            <p class="loading-text">Fetching your saved culinary creations</p>
+          </div>
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="empty-state hidden">
+          <div class="empty-state-icon">📚</div>
+          <h2 class="empty-state-title">No Saved Recipes Yet</h2>
+          <p class="empty-state-text">
+            Start generating recipes and save your favorites!
+          </p>
+          <a href="/profile.html" class="btn btn-generate">
+            <span class="btn-icon">✨</span>
+            <span class="btn-text">Generate Recipes</span>
+          </a>
+        </div>
+
+        <!-- Recipes Grid -->
+        <div
+          id="recipesGrid"
+          class="saved-recipes-grid hidden"
+          role="region"
+          aria-label="Saved Recipes"
+        ></div>
+      </div>
+    </main>
+
+    <!-- Recipe Detail Modal -->
+    <div id="recipeModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="modalTitle" class="modal-title">Recipe Name</h2>
+          <button class="modal-close" aria-label="Close modal">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <p id="modalDescription" class="modal-description"></p>
+
+          <div id="modalAlergenWarning" class="allergen-warning hidden"></div>
+
+          <div class="modal-section">
+            <h3 class="modal-section-title">🥘 Ingredients</h3>
+            <ul id="modalIngredientsList" class="ingredients-list"></ul>
+          </div>
+
+          <div class="modal-section">
+            <h3 class="modal-section-title">👨‍🍳 Instructions</h3>
+            <ol id="modalInstructionsList" class="instructions-list"></ol>
+          </div>
+
+          <div id="modalTags" class="modal-section"></div>
+        </div>
+
+        <div class="modal-footer">
+          <button id="modalDeleteBtn" class="btn-delete">
+            🗑️ Delete Recipe
+          </button>
+          <button class="btn-modal-close btn-toggle-expand">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="/js/recipes.js"></script>
+  </body>
+</html>
